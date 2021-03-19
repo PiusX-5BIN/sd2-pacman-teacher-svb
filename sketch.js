@@ -111,7 +111,6 @@ function DrawGhost() {
 
     this.collide(maze.walls);
 
-    // if (this.collide(maze.walls) === true) {
     for (let i = 0; i < directionsToTry.length; ++i) {
 
         if (directionsToTry[i] === 180 &&
@@ -134,11 +133,7 @@ function DrawGhost() {
             this.setSpeed(1, directionsToTry[i]);
             break;
         }
-        // this.setSpeed(1, directionsToTry[i]);
     }
-    // }
-
-    // console.log(directionsToTry);
 }
 
 function CreateMaze() {
