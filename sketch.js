@@ -1,6 +1,7 @@
 let pacman = null;
 let maze = null;
 let level1data = [];
+let ghosts = null;
 
 function preload() {
     level1data = loadStrings("levels/level1.txt");
@@ -13,6 +14,131 @@ function setup() {
 
     maze = CreateMaze();
     pacman = CreatePacman();
+
+    ghosts = new Group();
+    let ghost = CreateGhost();
+    ghosts.add(ghost);
+}
+
+function CreateGhost() {
+    let spawnPos = maze.ghostSpawnPositions[2];
+    let ghostSprite = createSprite(spawnPos.x, spawnPos.y, 20, 20);
+    ghostSprite["target"] = pacman;
+    ghostSprite.shapeColor = color('pink');
+
+    ghostSprite.draw = DrawGhost;
+
+
+    ghostSprite.setCollider("circle");
+
+
+    ghostSprite.setSpeed(1, -90);
+
+    // create 4 sensors (up, down, left, right)
+    ghostSprite["senseUp"] = createSprite(
+        ghostSprite.position.x,
+        ghostSprite.position.y - (ghostSprite.height / 2),
+        ghostSprite.width * 3 / 4,
+        2
+    );
+    ghostSprite["senseDown"] = createSprite(
+        ghostSprite.position.x,
+        ghostSprite.position.y + ghostSprite.height / 2,
+        ghostSprite.width * 3 / 4,
+        2
+    );
+    ghostSprite["senseLeft"] = createSprite(
+        ghostSprite.position.x - ghostSprite.width / 2,
+        ghostSprite.position.y,
+        2,
+        ghostSprite.height * 3 / 4
+    );
+    ghostSprite["senseRight"] = createSprite(
+        ghostSprite.position.x + ghostSprite.width / 2,
+        ghostSprite.position.y,
+        2,
+        ghostSprite.height * 3 / 4
+    );
+
+    return ghostSprite;
+}
+
+function DrawGhost() {
+    fill(this.shapeColor);
+    rect(0, 0, this.width, this.height);
+
+    this.senseUp.position.x = this.position.x;
+    this.senseUp.position.y = this.position.y - this.height / 2;
+    this.senseDown.position.x = this.position.x;
+    this.senseDown.position.y = this.position.y + this.height / 2;
+    this.senseLeft.position.x = this.position.x - this.width / 2;
+    this.senseLeft.position.y = this.position.y;
+    this.senseRight.position.x = this.position.x + this.width / 2;
+    this.senseRight.position.y = this.position.y;
+
+    let direction = p5.Vector.sub(this.target.position, this.position);
+
+    let dirX = direction.x;
+    let dirY = direction.y;
+
+    let directionsToTry = [];
+
+
+    let angleX = Math.sign(dirX);
+    if (angleX === 0) {
+        angleX = 1;
+    }
+    angleX *= 90; // make it a corner between -90 and 90
+    angleX -= 90; // make it a corner between 0 and -180
+    angleX *= -1; // flip the sign, so its between 0 and 180
+
+    let angleY = Math.sign(dirY);
+    if (angleY === 0) {
+        angleY = 1;
+    }
+    angleY *= 90;
+
+    if (Math.abs(dirX) > Math.abs(dirY)) {
+        directionsToTry.push(angleX);
+        directionsToTry.push(angleY);
+
+    } else {
+        directionsToTry.push(angleY);
+        directionsToTry.push(angleX);
+    }
+    directionsToTry.push(-angleY);
+    directionsToTry.push(angleX - 180);
+
+    this.collide(maze.walls);
+
+    // if (this.collide(maze.walls) === true) {
+    for (let i = 0; i < directionsToTry.length; ++i) {
+
+        if (directionsToTry[i] === 180 &&
+            this.senseLeft.overlap(maze.walls) === false) {
+            this.setSpeed(1, directionsToTry[i]);
+            break;
+            }
+        else if (directionsToTry[i] === 90 &&
+            this.senseDown.overlap(maze.walls) === false) {
+            this.setSpeed(1, directionsToTry[i]);
+            break;
+        }
+        else if (directionsToTry[i] === 0 &&
+            this.senseRight.overlap(maze.walls) === false) {
+            this.setSpeed(1, directionsToTry[i]);
+            break;
+        }
+        else if (directionsToTry[i] === -90 &&
+            this.senseUp.overlap(maze.walls) === false) {
+            this.setSpeed(1, directionsToTry[i]);
+            break;
+        }
+        // this.setSpeed(1, directionsToTry[i]);
+    }
+    // }
+
+    // console.log(directionsToTry);
 }
 
 function CreateMaze() {
@@ -22,6 +148,7 @@ function CreateMaze() {
     mazeSprite["walls"] = new Group();
     mazeSprite["candies"] = new Group();
     mazeSprite["fruit"] = new Group();
+    mazeSprite["ghostSpawnPositions"] = [];
 
     let wallSprite = null;
     for (let i = 0; i < level1data.length; ++i) {
@@ -46,6 +173,9 @@ function CreateMaze() {
                 let fruitSprite = createSprite(x, y, 15, 15);
                 fruitSprite.shapeColor = color("red");
                 mazeSprite.fruit.add(fruitSprite);
+            } else if (character === "g") {
+                let spawnPos = createVector(x, y);
+                mazeSprite.ghostSpawnPositions.push(spawnPos);
             }
         }
     }
@@ -57,14 +187,43 @@ function CreatePacman() {
     let pacmanSprite = createSprite(310, 190, 20, 20);
     pacmanSprite.shapeColor = color("gold");
     pacmanSprite.draw = DrawPacman;
-    pacmanSprite["oldVelocity"] = createVector(0, 0);
-    pacmanSprite.setDefaultCollider();
-    pacmanSprite.limitSpeed(1);
+
     // pacmanSprite.debug = true;
+    pacmanSprite.setCollider("circle");
 
     pacmanSprite["score"] = 0;
-    pacmanSprite["trueVelocity"] = pacmanSprite.velocity.copy();
-    pacmanSprite["oldPos"] = pacmanSprite.position.copy(); // weird hack, because previousPosition in p5.play is bugged
+
+    // create 4 sensors (up, down, left, right)
+    pacmanSprite["senseUp"] = createSprite(
+        pacmanSprite.position.x,
+        pacmanSprite.position.y - pacmanSprite.height,
+        pacmanSprite.width * 3 / 4,
+        pacmanSprite.height * 3 / 4
+    );
+    pacmanSprite["senseDown"] = createSprite(
+        pacmanSprite.position.x,
+        pacmanSprite.position.y + pacmanSprite.height,
+        pacmanSprite.width * 3 / 4,
+        pacmanSprite.height * 3 / 4
+    );
+    pacmanSprite["senseLeft"] = createSprite(
+        pacmanSprite.position.x - pacmanSprite.width,
+        pacmanSprite.position.y,
+        pacmanSprite.width * 3 / 4,
+        pacmanSprite.height * 3 / 4
+    );
+    pacmanSprite["senseRight"] = createSprite(
+        pacmanSprite.position.x + pacmanSprite.width,
+        pacmanSprite.position.y,
+        pacmanSprite.width * 3 / 4,
+        pacmanSprite.height * 3 / 4
+    );
+
+    // make the sensors invisible by setting the alpha value to 0
+    pacmanSprite.senseUp.shapeColor.setAlpha(0);
+    pacmanSprite.senseDown.shapeColor.setAlpha(0);
+    pacmanSprite.senseLeft.shapeColor.setAlpha(0);
+    pacmanSprite.senseRight.shapeColor.setAlpha(0);
 
     return pacmanSprite;
 }
@@ -77,39 +236,40 @@ function EatCandy(pacman, candy) {
 function DrawPacman() {
     fill(this.shapeColor);
     ellipse(
-        this.oldPos.x - this.position.x, // weird hack, because previousPosition in p5.play is bugged
-        this.oldPos.y - this.position.y, // weird hack, because previousPosition in p5.play is bugged
+        0, 0,
         this.width,
         this.height
     );
 
+    this.senseUp.position.x = this.position.x;
+    this.senseUp.position.y = this.position.y - this.height;
+    this.senseDown.position.x = this.position.x;
+    this.senseDown.position.y = this.position.y + this.height;
+    this.senseLeft.position.x = this.position.x - this.width;
+    this.senseLeft.position.y = this.position.y;
+    this.senseRight.position.x = this.position.x + this.width;
+    this.senseRight.position.y = this.position.y;
+
     pacman.overlap(maze.candies, EatCandy);
     pacman.collide(maze.walls);
 
-    let tv = p5.Vector.sub(pacman.position, pacman.oldPos); // weird hack, because previousPosition in p5.play is bugged
-
-    if (round(tv.magSq()) != 0) {
-        tv.normalize();
-        this.trueVelocity = tv.copy();
-    }
-
-    this.velocity = this.trueVelocity.copy();
-    this.oldPos = this.position.copy(); // weird hack, because previousPosition in p5.play is bugged
-}
-
-function keyPressed() {
-    if (keyCode === LEFT_ARROW) {
+    if (keyIsDown(LEFT_ARROW) === true &&
+        pacman.senseLeft.overlap(maze.walls) === false) {
         pacman.setSpeed(2, 180);
     }
-    if (keyCode === RIGHT_ARROW) {
+    if (keyIsDown(RIGHT_ARROW) === true &&
+        pacman.senseRight.overlap(maze.walls) === false) {
         pacman.setSpeed(2, 0);
     }
-    if (keyCode === UP_ARROW) {
+    if (keyIsDown(UP_ARROW) === true &&
+        pacman.senseUp.overlap(maze.walls) === false) {
         pacman.setSpeed(2, -90);
     }
-    if (keyCode === DOWN_ARROW) {
+    if (keyIsDown(DOWN_ARROW) === true &&
+        pacman.senseDown.overlap(maze.walls) === false) {
         pacman.setSpeed(2, 90);
     }
+
 }
 
 function draw() {
