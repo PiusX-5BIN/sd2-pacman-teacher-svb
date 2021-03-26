@@ -20,58 +20,123 @@ function setup() {
     pacman = CreatePacman();
 
     ghosts = new Group();
-    let ghost = CreateGhost();
+    let ghost = CreateGhost("Blinky");
+    ghosts.add(ghost);
+    ghost = CreateGhost("Pinky");
+    ghosts.add(ghost);
+    ghost = CreateGhost("Inky");
     ghosts.add(ghost);
 }
 
-function CreateGhost() {
-    let spawnPos = maze.ghostSpawnPositions[2];
+function DrawGhostInky() {
+    if (this.position.dist(this.target) < 1) {
+        this.hasExitedStartArea = true;
+        this.target = pacman.position;
+    }
+    this.DrawGhost();
+}
+function DrawGhostBlinky() {
+    if (this.position.dist(this.target) < 1) {
+        this.hasExitedStartArea = true;
+    }
+
+    if (this.hasExitedStartArea === true) {
+        let pacmanDirection = pacman.velocity.copy().mult(40);
+        this.target = pacman.position.copy().add(pacmanDirection);
+    }
+
+    this.DrawGhost();
+}
+function DrawGhostPinky() {
+    if (this.position.dist(this.target) < 1) {
+        this.hasExitedStartArea = true;
+    }
+
+    if (this.hasExitedStartArea === true) {
+        let pacmanDirection = pacman.velocity.copy().mult(-40);
+        this.target = pacman.position.copy().add(pacmanDirection);
+    }
+
+    this.DrawGhost();
+}
+function DrawGhostClyde() {
+    if (this.position.dist(this.target) < 1) {
+        this.hasExitedStartArea = true;
+        this.target = pacman.position;
+    }
+    this.DrawGhost();
+}
+
+// names of ghosts: "Inky", "Blinky", "Pinky", "Clyde"
+function CreateGhost(name) {
+    let spawnPos = maze.ghostSpawnPositions[ghosts.length];
     let ghostSprite = createSprite(spawnPos.x, spawnPos.y, 20, 20);
     ghostSprite["target"] = maze.ghostStartPos;
-    ghostSprite.shapeColor = color('pink');
+
+    if (name === "Inky") {
+        ghostSprite.shapeColor = color("cyan");
+        ghostSprite.draw = DrawGhostInky;
+    } else if (name === "Blinky") {
+        ghostSprite.shapeColor = color("red");
+        ghostSprite.draw = DrawGhostBlinky;
+    } else if (name === "Pinky") {
+        ghostSprite.shapeColor = color("pink");
+        ghostSprite.draw = DrawGhostPinky;
+    } else {
+        ghostSprite.shapeColor = color("orange");
+        ghostSprite.draw = DrawGhostClyde;
+    }
+
+    ghostSprite["DrawGhost"] = DrawGhost;
 
     ghostSprite["scared"] = false;
+    ghostSprite["name"] = name;
+    ghostSprite["hasExitedStartArea"] = false;
 
-    ghostSprite.draw = DrawGhost;
-
+    ghostSprite["walls"] = new Group();
+    for (let i = 0; i < maze.walls.length; ++i) {
+        ghostSprite.walls.add(maze.walls[i]);
+    }
 
     ghostSprite.setCollider("circle");
-
 
     // ghostSprite.setSpeed(1, -90);
 
     ghostSprite["sensors"] = {};
 
-
     // create 4 sensors (up, down, left, right)
     // sensor pointing up (-90°)
     ghostSprite.sensors[-90] = createSprite(
         ghostSprite.position.x,
-        ghostSprite.position.y - (ghostSprite.height / 2),
-        ghostSprite.width * 3 / 4,
+        ghostSprite.position.y - ghostSprite.height / 2,
+        (ghostSprite.width * 3) / 4,
         2
     );
+    ghostSprite.sensors[-90].shapeColor.setAlpha(0);
     // sensor pointing down (90°)
     ghostSprite.sensors[90] = createSprite(
         ghostSprite.position.x,
         ghostSprite.position.y + ghostSprite.height / 2,
-        ghostSprite.width * 3 / 4,
+        (ghostSprite.width * 3) / 4,
         2
     );
+    ghostSprite.sensors[90].shapeColor.setAlpha(0);
     // sensor pointing left (180°)
     ghostSprite.sensors[180] = createSprite(
         ghostSprite.position.x - ghostSprite.width / 2,
         ghostSprite.position.y,
         2,
-        ghostSprite.height * 3 / 4
+        (ghostSprite.height * 3) / 4
     );
+    ghostSprite.sensors[180].shapeColor.setAlpha(0);
     // sensor pointing right (0°)
     ghostSprite.sensors[0] = createSprite(
         ghostSprite.position.x + ghostSprite.width / 2,
         ghostSprite.position.y,
         2,
-        ghostSprite.height * 3 / 4
+        (ghostSprite.height * 3) / 4
     );
+    ghostSprite.sensors[0].shapeColor.setAlpha(0);
     // EDGE CASE: sensor pointing left (-180°)
     ghostSprite.sensors[-180] = ghostSprite.sensors[180];
     // EDGE CASE: sensor pointing right (-0°)
@@ -85,28 +150,32 @@ function CreateGhost() {
 }
 
 function keyPressed() {
-    if (keyCode === LEFT_ARROW ||
-        keyCode === RIGHT_ARROW) {
+    if (keyCode === LEFT_ARROW || keyCode === RIGHT_ARROW) {
         gameStarted = true;
     }
 }
 
 function DrawGhost() {
     fill(this.shapeColor);
-
     if (this.scared === true) {
-        fill('blue');
+        fill("blue");
     }
 
-    rect(0, 0, this.width, this.height);
+    circle(
+        this.target.x - this.position.x,
+        this.target.y - this.position.y,
+        5,
+        5
+    );
+
+    rect(0, 0, this.width, this.height, this.width / 2, this.width / 2, 0, 0);
 
     if (gameStarted === false) {
         return;
     }
 
-    if (this.position.dist(this.target) < 1) {
-        maze.walls.add(maze.ghostDoor);
-        this.target = pacman.position;
+    if (this.hasExitedStartArea === true) {
+        this.walls.add(maze.ghostDoor);
     }
 
     this.sensors[-90].position.x = this.position.x;
@@ -129,8 +198,7 @@ function DrawGhost() {
 
     if (bestAngle === floor(angle / 90) * 90) {
         secondBestAngle = ceil(angle / 90) * 90;
-    }
-    else {
+    } else {
         secondBestAngle = floor(angle / 90) * 90;
     }
 
@@ -140,11 +208,10 @@ function DrawGhost() {
     directionsToTry.push(bestAngle - 180);
     directionsToTry.push(secondBestAngle - 180);
 
-
     for (let i = 0; i < directionsToTry.length; ++i) {
         let tryAngle = directionsToTry[i];
 
-        if (this.sensors[tryAngle].overlap(maze.walls) === false) {
+        if (this.sensors[tryAngle].overlap(this.walls) === false) {
             this.setSpeed(1, directionsToTry[i]);
             break;
         }
@@ -192,10 +259,9 @@ function CreateMaze() {
                 mazeSprite.ghostStartPos = createVector(x, y);
             } else if (character === "d") {
                 mazeSprite.ghostDoor = createSprite(x, y, 20, 20);
-                mazeSprite.ghostDoor.shapeColor = color('red');
+                mazeSprite.ghostDoor.shapeColor = color("red");
                 mazeSprite.ghostDoor.setDefaultCollider();
             }
-
         }
     }
 
@@ -206,6 +272,7 @@ function CreatePacman() {
     let pacmanSprite = createSprite(210, 190, 20, 20);
     pacmanSprite.shapeColor = color("gold");
     pacmanSprite.draw = DrawPacman;
+    pacmanSprite.rotateToDirection = true;
 
     // pacmanSprite.debug = true;
     pacmanSprite.setCollider("circle");
@@ -216,26 +283,26 @@ function CreatePacman() {
     pacmanSprite["senseUp"] = createSprite(
         pacmanSprite.position.x,
         pacmanSprite.position.y - pacmanSprite.height,
-        pacmanSprite.width * 3 / 4,
-        pacmanSprite.height * 3 / 4
+        (pacmanSprite.width * 3) / 4,
+        (pacmanSprite.height * 3) / 4
     );
     pacmanSprite["senseDown"] = createSprite(
         pacmanSprite.position.x,
         pacmanSprite.position.y + pacmanSprite.height,
-        pacmanSprite.width * 3 / 4,
-        pacmanSprite.height * 3 / 4
+        (pacmanSprite.width * 3) / 4,
+        (pacmanSprite.height * 3) / 4
     );
     pacmanSprite["senseLeft"] = createSprite(
         pacmanSprite.position.x - pacmanSprite.width,
         pacmanSprite.position.y,
-        pacmanSprite.width * 3 / 4,
-        pacmanSprite.height * 3 / 4
+        (pacmanSprite.width * 3) / 4,
+        (pacmanSprite.height * 3) / 4
     );
     pacmanSprite["senseRight"] = createSprite(
         pacmanSprite.position.x + pacmanSprite.width,
         pacmanSprite.position.y,
-        pacmanSprite.width * 3 / 4,
-        pacmanSprite.height * 3 / 4
+        (pacmanSprite.width * 3) / 4,
+        (pacmanSprite.height * 3) / 4
     );
 
     // make the sensors invisible by setting the alpha value to 0
@@ -265,18 +332,26 @@ function HitGhost(pacman, ghost) {
         ghost.position = maze.ghostSpawnPositions[0].copy();
         ghost.draw();
         ghost.target = maze.ghostStartPos;
-        maze.walls.remove(maze.ghostDoor);
+        ghost.walls.remove(maze.ghostDoor);
         ghost.scared = false;
+        ghost.target = maze.ghostStartPos;
     }
 }
 
 function DrawPacman() {
     fill(this.shapeColor);
-    ellipse(
-        0, 0,
-        this.width,
-        this.height
-    );
+
+    let minAngle = -40;
+    let maxAngle = 40;
+
+    let animationTime = 200;
+    let timePassed = millis();
+
+    let animationTimestamp = (timePassed % animationTime) / animationTime;
+    let mouthAngle =
+        Math.abs(lerp(minAngle, maxAngle, animationTimestamp)) + 20;
+
+    arc(0, 0, this.width, this.height, mouthAngle / 2, -mouthAngle / 2);
 
     this.senseUp.position.x = this.position.x;
     this.senseUp.position.y = this.position.y - this.height;
@@ -292,20 +367,28 @@ function DrawPacman() {
     pacman.overlap(ghosts, HitGhost);
     pacman.collide(maze.walls);
 
-    if (keyIsDown(LEFT_ARROW) === true &&
-        pacman.senseLeft.overlap(maze.walls) === false) {
+    if (
+        keyIsDown(LEFT_ARROW) === true &&
+        pacman.senseLeft.overlap(maze.walls) === false
+    ) {
         pacman.setSpeed(2, 180);
     }
-    if (keyIsDown(RIGHT_ARROW) === true &&
-        pacman.senseRight.overlap(maze.walls) === false) {
+    if (
+        keyIsDown(RIGHT_ARROW) === true &&
+        pacman.senseRight.overlap(maze.walls) === false
+    ) {
         pacman.setSpeed(2, 0);
     }
-    if (keyIsDown(UP_ARROW) === true &&
-        pacman.senseUp.overlap(maze.walls) === false) {
+    if (
+        keyIsDown(UP_ARROW) === true &&
+        pacman.senseUp.overlap(maze.walls) === false
+    ) {
         pacman.setSpeed(2, -90);
     }
-    if (keyIsDown(DOWN_ARROW) === true &&
-        pacman.senseDown.overlap(maze.walls) === false) {
+    if (
+        keyIsDown(DOWN_ARROW) === true &&
+        pacman.senseDown.overlap(maze.walls) === false
+    ) {
         pacman.setSpeed(2, 90);
     }
 }
